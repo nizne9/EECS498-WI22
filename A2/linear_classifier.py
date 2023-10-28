@@ -125,9 +125,7 @@ class Softmax(LinearClassifier):
 # **************************************************#
 
 
-def svm_loss_naive(
-    W: torch.Tensor, X: torch.Tensor, y: torch.Tensor, reg: float
-):
+def svm_loss_naive(W: torch.Tensor, X: torch.Tensor, y: torch.Tensor, reg: float):
     """
     Structured SVM loss function, naive implementation (with loops).
 
@@ -169,7 +167,8 @@ def svm_loss_naive(
                 # at the same time that the loss is being computed.                   #
                 #######################################################################
                 # Replace "pass" statement with your code
-                pass
+                dW[:, j] += X[i]
+                dW[:, y[i]] -= X[i]
                 #######################################################################
                 #                       END OF YOUR CODE                              #
                 #######################################################################
@@ -187,7 +186,8 @@ def svm_loss_naive(
     # and add it to dW. (part 2)                                                #
     #############################################################################
     # Replace "pass" statement with your code
-    pass
+    dW /= num_train
+    dW += 2 * reg * W
     #############################################################################
     #                             END OF YOUR CODE                              #
     #############################################################################
@@ -195,9 +195,7 @@ def svm_loss_naive(
     return loss, dW
 
 
-def svm_loss_vectorized(
-    W: torch.Tensor, X: torch.Tensor, y: torch.Tensor, reg: float
-):
+def svm_loss_vectorized(W: torch.Tensor, X: torch.Tensor, y: torch.Tensor, reg: float):
     """
     Structured SVM loss function, vectorized implementation. When you implment
     the regularization over W, please DO NOT multiply the regularization term by
@@ -223,7 +221,15 @@ def svm_loss_vectorized(
     # result in loss.                                                           #
     #############################################################################
     # Replace "pass" statement with your code
-    pass
+    num_train = X.size()[0]
+    scores = X.mm(W)
+    idx = torch.arange(num_train)
+    margin = scores - scores[idx, y[idx]].view(-1, 1) + 1
+    margin[idx, y] -= margin[idx, y]
+    loss = margin.sum(dim=1).sum()
+
+    loss /= num_train
+    loss += reg * torch.sum(W * W)
     #############################################################################
     #                             END OF YOUR CODE                              #
     #############################################################################
@@ -238,7 +244,15 @@ def svm_loss_vectorized(
     # loss.                                                                     #
     #############################################################################
     # Replace "pass" statement with your code
-    pass
+    m = torch.zeros_like(margin)
+    margin[idx, y] -= margin[idx, y]
+    mask = margin > 0
+    m[mask] = 1
+    m[idx, y] -= m.sum(dim=1)  # each j = y[i]
+    dW = m.T.mm(X).T
+
+    dW /= num_train
+    dW += 2 * reg * W
     #############################################################################
     #                             END OF YOUR CODE                              #
     #############################################################################
@@ -246,9 +260,7 @@ def svm_loss_vectorized(
     return loss, dW
 
 
-def sample_batch(
-    X: torch.Tensor, y: torch.Tensor, num_train: int, batch_size: int
-):
+def sample_batch(X: torch.Tensor, y: torch.Tensor, num_train: int, batch_size: int):
     """
     Sample batch_size elements from the training data and their
     corresponding labels to use in this round of gradient descent.
@@ -263,7 +275,9 @@ def sample_batch(
     # Hint: Use torch.randint to generate indices.                          #
     #########################################################################
     # Replace "pass" statement with your code
-    pass
+    idx = torch.randint(num_train, (batch_size,))
+    X_batch = X[idx]
+    y_batch = y[idx]
     #########################################################################
     #                       END OF YOUR CODE                                #
     #########################################################################
@@ -309,9 +323,7 @@ def train_linear_classifier(
     if W is None:
         # lazily initialize W
         num_classes = torch.max(y) + 1
-        W = 0.000001 * torch.randn(
-            dim, num_classes, device=X.device, dtype=X.dtype
-        )
+        W = 0.000001 * torch.randn(dim, num_classes, device=X.device, dtype=X.dtype)
     else:
         num_classes = W.shape[1]
 
@@ -331,7 +343,7 @@ def train_linear_classifier(
         # Update the weights using the gradient and the learning rate.          #
         #########################################################################
         # Replace "pass" statement with your code
-        pass
+        W -= grad * learning_rate
         #########################################################################
         #                       END OF YOUR CODE                                #
         #########################################################################
@@ -362,7 +374,7 @@ def predict_linear_classifier(W: torch.Tensor, X: torch.Tensor):
     # Implement this method. Store the predicted labels in y_pred.            #
     ###########################################################################
     # Replace "pass" statement with your code
-    pass
+    y_pred = X.mm(W).argmax(dim=1)
     ###########################################################################
     #                           END OF YOUR CODE                              #
     ###########################################################################
@@ -388,7 +400,8 @@ def svm_get_search_params():
     # TODO:   add your own hyper parameter lists.                             #
     ###########################################################################
     # Replace "pass" statement with your code
-    pass
+    learning_rates = [1e-4, 1e-3, 1e-2]
+    regularization_strengths = [1e-2, 1e-1, 1e0, 1e1, 3]
     ###########################################################################
     #                           END OF YOUR CODE                              #
     ###########################################################################
@@ -440,7 +453,18 @@ def test_one_param_set(
     # num_iters = 100
 
     # Replace "pass" statement with your code
-    pass
+    cls.train(
+        data_dict["X_train"],
+        data_dict["y_train"],
+        lr,
+        reg,
+        num_iters,
+    )
+    y_train_pred = cls.predict(data_dict["X_train"])
+    train_acc = 100.0 * (data_dict["y_train"] == y_train_pred).double().mean().item()
+
+    y_val_pred = cls.predict(data_dict["X_val"])
+    val_acc = 100.0 * (data_dict["y_val"] == y_val_pred).double().mean().item()
     ############################################################################
     #                            END OF YOUR CODE                              #
     ############################################################################
@@ -453,9 +477,7 @@ def test_one_param_set(
 # **************************************************#
 
 
-def softmax_loss_naive(
-    W: torch.Tensor, X: torch.Tensor, y: torch.Tensor, reg: float
-):
+def softmax_loss_naive(W: torch.Tensor, X: torch.Tensor, y: torch.Tensor, reg: float):
     """
     Softmax loss function, naive implementation (with loops).  When you implment
     the regularization over W, please DO NOT multiply the regularization term by
@@ -487,7 +509,26 @@ def softmax_loss_naive(
     # regularization!                                                           #
     #############################################################################
     # Replace "pass" statement with your code
-    pass
+    num_train = X.size()[0]
+    num_classes = W.size()[1]
+
+    for i in range(num_train):
+        scores = W.t().mv(X[i])
+        logC = -scores.max()
+        m = 0
+        for j in range(num_classes):
+            m += torch.exp(scores[j] + logC)
+        loss += -scores[y[i]] - logC + torch.log(m)
+
+        for j in range(num_classes):
+            dW[:, j] += torch.exp(scores[j] + logC) / m * X[i]
+        dW[:, y[i]] -= X[i]
+
+    loss /= num_train
+    loss += reg * (W * W).sum()
+
+    dW /= num_train
+    dW += reg * 2 * W
     #############################################################################
     #                          END OF YOUR CODE                                 #
     #############################################################################
@@ -517,7 +558,25 @@ def softmax_loss_vectorized(
     # regularization!                                                           #
     #############################################################################
     # Replace "pass" statement with your code
-    pass
+    num_train = X.size()[0]
+    idx = torch.arange(num_train)
+
+    scores = X.mm(W)
+    logC, _ = scores.max(dim=1)
+    logC *= -1
+    margin = torch.exp(scores + logC.view(-1, 1))
+    m = margin.sum(dim=1)
+
+    loss = (-scores[idx, y] - logC + torch.log(m)).sum()
+    loss /= num_train
+    loss += reg * (W * W).sum()
+
+    temp = torch.zeros_like(scores)
+    temp[idx, y] = -1
+    temp += margin / m.view(-1, 1)
+    dW = temp.t().mm(X).t()
+    dW /= num_train
+    dW += reg * 2 * W
     #############################################################################
     #                          END OF YOUR CODE                                 #
     #############################################################################
@@ -546,7 +605,8 @@ def softmax_get_search_params():
     # classifier.                                                             #
     ###########################################################################
     # Replace "pass" statement with your code
-    pass
+    learning_rates = [1e-3, 1e-2, 1e-1, 1e0]
+    regularization_strengths = [1e-3, 1e-2, 1e-1]
     ###########################################################################
     #                           END OF YOUR CODE                              #
     ###########################################################################
