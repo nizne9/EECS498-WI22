@@ -3,4 +3,4 @@ The completed assignments from the "Deep Learning for Computer Vision" course of
 
 Please note that the solutions provided are **unofficial**.
 
-All code has been formatted using black.
+All code that needs to be edited has been formatted using black.
