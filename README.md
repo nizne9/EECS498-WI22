@@ -9,6 +9,12 @@ All code that needs to be edited has been formatted using `ruff`.
 
 ## A2
 
+### Q3
+
+* It's an interesting task. Maybe it's to let you experience how hard it is, to design a digit recognizer manually, or perhaps to understand the inner workings of neural networks. Who knows?
+* The secret is to mix up different numbers when handwriting them, use different weights when combining features (the handwritten digits), and keep trying again and again.
+* A much better way might be to design a simple two-layer net, visualize its weights, or simply give up the task.
+
 ## A3
 
 ### Q1
