@@ -4,6 +4,7 @@ and two-stage detector implementations. You have to implement some parts here -
 walk through the notebooks and you will find instructions on *when* to implement
 *what* in this module.
 """
+
 from typing import Dict, Tuple
 
 import torch
@@ -84,7 +85,13 @@ class DetectorBackboneWithFPN(nn.Module):
         self.fpn_params = nn.ModuleDict()
 
         # Replace "pass" statement with your code
-        pass
+        for level_name, feature_shape in dummy_out_shapes:
+            self.fpn_params[f"lateral{level_name[-1]}"] = nn.Conv2d(
+                feature_shape[1], out_channels, kernel_size=1, stride=1, padding=0
+            )
+            self.fpn_params[f"output{level_name[-1]}"] = nn.Conv2d(
+                out_channels, out_channels, kernel_size=3, stride=1, padding=1
+            )
         ######################################################################
         #                            END OF YOUR CODE                        #
         ######################################################################
@@ -111,7 +118,19 @@ class DetectorBackboneWithFPN(nn.Module):
         ######################################################################
 
         # Replace "pass" statement with your code
-        pass
+        p5 = self.fpn_params["lateral5"](backbone_feats["c5"])
+        p4 = self.fpn_params["lateral4"](backbone_feats["c4"]) + F.interpolate(
+            p5, scale_factor=2, mode="nearest"
+        )
+        p3 = self.fpn_params["lateral3"](backbone_feats["c3"]) + F.interpolate(
+            p4, scale_factor=2, mode="nearest"
+        )
+
+        for level_name in backbone_feats.keys():
+            level = level_name[-1]
+            fpn_feats[f"p{level}"] = self.fpn_params[f"output{level}"](
+                eval(f"p{level}")
+            )
         ######################################################################
         #                            END OF YOUR CODE                        #
         ######################################################################
@@ -157,7 +176,12 @@ def get_fpn_location_coords(
         # TODO: Implement logic to get location co-ordinates below.          #
         ######################################################################
         # Replace "pass" statement with your code
-        pass
+        _, _, H, W = feat_shape
+        ii = torch.arange(H, device=device).repeat(W, 1).T
+        jj = torch.arange(W, device=device).repeat(H, 1)
+        xc = level_stride * (ii + 0.5)
+        yc = level_stride * (jj + 0.5)
+        location_coords[level_name] = torch.stack((xc, yc), axis=-1).reshape(-1, 2)
         ######################################################################
         #                             END OF YOUR CODE                       #
         ######################################################################
@@ -196,7 +220,33 @@ def nms(boxes: torch.Tensor, scores: torch.Tensor, iou_threshold: float = 0.5):
     # github.com/pytorch/vision/blob/main/torchvision/csrc/ops/cpu/nms_kernel.cpp
     #############################################################################
     # Replace "pass" statement with your code
-    pass
+    suppressed = torch.zeros(scores.shape, dtype=torch.bool, device=scores.device)
+    order_indices = torch.argsort(scores, descending=True)
+    left, right = boxes[:, 0], boxes[:, 2]
+    top, bottom = boxes[:, 1], boxes[:, 3]
+    areas = (right - left) * (bottom - top)
+
+    for i, idx in enumerate(order_indices):
+        if suppressed[i]:
+            continue
+        ix1, iy1, ix2, iy2 = left[idx], top[idx], right[idx], bottom[idx]
+        iareas = areas[idx]
+        for j, idx_ in enumerate(order_indices[i + 1 :]):
+            if suppressed[j + i + 1]:
+                continue
+            xx1 = max(ix1, left[idx_])
+            yy1 = max(iy1, top[idx_])
+            xx2 = min(ix2, right[idx_])
+            yy2 = min(iy2, bottom[idx_])
+
+            w = torch.clamp(xx2 - xx1, min=0)
+            h = torch.clamp(yy2 - yy1, min=0)
+            inter = w * h
+            iou = inter / (iareas + areas[idx_] - inter)
+            if iou > iou_threshold:
+                suppressed[j + i + 1] = True
+
+    keep = order_indices[~suppressed]
     #############################################################################
     #                              END OF YOUR CODE                             #
     #############################################################################
