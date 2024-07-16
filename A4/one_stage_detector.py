@@ -585,7 +585,6 @@ class FCOS(nn.Module):
         # cls
         gt_labels = matched_gt_boxes[:, :, 4].to(torch.long)
         gt_labels[gt_labels < 0] = self.num_classes
-        # another way to do this
         gt_classes = F.one_hot(gt_labels, num_classes=self.num_classes + 1).to(
             pred_cls_logits.dtype
         )
